@@ -11,6 +11,10 @@ from src.analytics.term_structure import list_legs
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+# ── time ───────────────────────────────────────────
+
+from datetime import timedelta
+
 st.subheader("📊 Aligned time-series panels")
 
 df: pd.DataFrame = st.session_state["daily_df"].copy()
@@ -40,18 +44,22 @@ df_plot = df[["Date (Day)"] + sel].copy()
 min_d = df_plot["Date (Day)"].min().date()
 max_d = df_plot["Date (Day)"].max().date()
 
+default_start = max_d - timedelta(days=30)          # last 30 days
+if default_start < min_d:
+    default_start = min_d                           # edge-case: small dataset
+
 start_d, end_d = st.slider(
     "Date range",
     min_value=min_d,
     max_value=max_d,
-    value=(max_d - pd.Timedelta(days=30)).date(),  # default = last 30 days
-    step=pd.Timedelta(days=1),
-    format="MMM D YYYY"
-) if min_d != max_d else (min_d, max_d)            # guard 1-row edge-case
+    value=(default_start, max_d),                   # ← tuple (start, end)
+    format="MMM D YYYY",
+)
 
-# keep only rows inside the chosen window
-mask = (df_plot["Date (Day)"] >= pd.Timestamp(start_d)) & \
-       (df_plot["Date (Day)"] <= pd.Timestamp(end_d))
+mask = (
+    (df_plot["Date (Day)"] >= pd.Timestamp(start_d)) &
+    (df_plot["Date (Day)"] <= pd.Timestamp(end_d))
+)
 df_plot = df_plot.loc[mask]
 
 if st.checkbox("Hide COVID-era extreme negatives", value=True):
