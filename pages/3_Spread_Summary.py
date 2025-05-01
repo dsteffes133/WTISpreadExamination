@@ -117,13 +117,33 @@ with bot[0]:
     fig_spread.update_layout(hovermode="x unified")
     st.plotly_chart(fig_spread, use_container_width=True)
 
-# -- 2-D  histogram ----------------------------------------------------
+# -- 2-D  histogram  ----------------------------------------------------
 with bot[1]:
     fig_hist = px.histogram(
-        spread, nbins=60, opacity=0.75,
+        spread,
+        nbins=60,
+        opacity=0.75,
         labels={"value": "Spread ($/bbl)"},
-        title="Distribution"
+        title="Distribution",
+        color_discrete_sequence=["#1f77b4"]
     )
-    fig_hist.add_vline(stats["Mean"], line_dash="dash", line_color="gray",
-                       annotation_text="Mean", annotation_position="top left")
+
+    # mean (existing line)
+    fig_hist.add_vline(
+        x=stats["Mean"],
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="Mean",
+        annotation_position="top left"
+    )
+
+    # today’s value  ← NEW dotted red line
+    fig_hist.add_vline(
+        x=stats["Last"],
+        line_dash="dot",
+        line_color="red",
+        annotation_text="Today",
+        annotation_position="top right"
+    )
+
     st.plotly_chart(fig_hist, use_container_width=True)
