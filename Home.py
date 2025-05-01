@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title("📈 WTI Crude Dashboard")
+st.title("📈 TI Spreads Dashboard")
 
 # ── file uploader in sidebar ─────────────────────────────────────────────
 uploaded = st.sidebar.file_uploader(

@@ -52,7 +52,7 @@ start_d, end_d = st.slider(
     "Date range",
     min_value=min_d,
     max_value=max_d,
-    value=(default_start, max_d),                   # ← tuple (start, end)
+    value=(min_d, max_d),                   # ← tuple (start, end)
     format="MMM D YYYY",
 )
 

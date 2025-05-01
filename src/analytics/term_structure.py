@@ -2,15 +2,16 @@
 import pandas as pd
 import re
 
-_LEG_RE = re.compile(r"%CL (\d+)!")
+_LEG_RE_PCT = re.compile(r"%CL (\d+)!")            # %CL 1! … %CL 24!
+_LEG_RE_CAL = re.compile(r"CL [FGHJKMNQUVXZ]\d{2}") # e.g. CL Z25
 
-def list_legs(df: pd.DataFrame, max_leg: int = 12):
-    """Return sorted ['%CL 1!', … '%CL n!'] up to max_leg present in df."""
-    legs = [
+def list_legs(df, max_pct_leg=24):
+    pct_legs = [
         c for c in df.columns
-        if _LEG_RE.fullmatch(c) and int(_LEG_RE.fullmatch(c).group(1)) <= max_leg
+        if _LEG_RE_PCT.fullmatch(c) and int(_LEG_RE_PCT.fullmatch(c).group(1)) <= max_pct_leg
     ]
-    return sorted(legs, key=lambda c: int(_LEG_RE.fullmatch(c).group(1)))
+    cal_legs = [c for c in df.columns if _LEG_RE_CAL.fullmatch(c)]
+    return sorted(pct_legs, key=lambda c: int(_LEG_RE_PCT.fullmatch(c).group(1))) + sorted(cal_legs)
 
 def curve_on_date(df: pd.DataFrame, date: pd.Timestamp, max_leg: int = 12):
     """Return Series of curve values for the chosen date."""
