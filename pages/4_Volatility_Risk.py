@@ -35,29 +35,3 @@ st.caption(
     f"Volatility computed on % daily returns, rolled {window} days "
     "(annualised). Works on outrights *and* any spread."
 )
-
-
-# ── Vol-Correlation Heat-map ────────────────────────────────────────────
-st.subheader("Correlation of absolute returns (same window)")
-
-max_instruments = 20
-heat_cols = st.multiselect(
-    f"Select up to {max_instruments} series for correlation heat-map",
-    universe,
-    default=sel_cols[:max_instruments],
-    key="heat_cols"
-)
-
-if heat_cols:
-    from src.analytics.vol_corr import rolling_abs_corr
-    from src.viz.corr_heatmap import corr_heatmap
-
-    corr_df = rolling_abs_corr(df, heat_cols, window=window)
-    st.plotly_chart(corr_heatmap(corr_df), use_container_width=True)
-    st.caption(
-        "Matrix shows correlation of |daily % moves| "
-        f"over the last **{window}** trading days. "
-        "Helps spot legs/spreads that co-spike."
-    )
-else:
-    st.info("Pick at least one series for the heat-map.")
