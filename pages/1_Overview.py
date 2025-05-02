@@ -120,6 +120,7 @@ fig.update_layout(
     margin=dict(l=60, r=40, t=30, b=40),
 )
 
+fig.update_traces(fill=None, stackgroup=None)
 st.plotly_chart(fig, use_container_width=True)
 
 
@@ -167,6 +168,7 @@ fig = px.scatter(
             col_y: f"{col_y} ({'% chg' if metric!='Price levels' else '$/bbl'})"},
 )
 fig.update_layout(height=500)
+fig.update_traces(fill=None, stackgroup=None)
 
 st.plotly_chart(fig, use_container_width=True)
 st.caption(
