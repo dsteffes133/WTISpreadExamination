@@ -44,17 +44,23 @@ def load_daily_xlsx(
 
     # 1 ▸ read Daily sheet (no col limit so new Z contracts are included)
     df = pd.read_excel(
-        xlsx, daily_sheet,
-        skiprows=5, header=0
-    )
+    xlsx, daily_sheet,
+    skiprows=5, header=0
+        )
     df.columns = df.columns.str.strip()
 
-    # drop legacy / helper columns we no longer want
+        # ── NEW — drop %CL legs beyond 12 ────────────────────────────────────
+    far_legs = [c for c in df.columns
+                    if _CL_NUM.fullmatch(c) and int(_CL_NUM.fullmatch(c).group(1)) > 12]
+    if far_legs:
+        df.drop(columns=far_legs, inplace=True)
+
+        # drop legacy / helper columns we no longer want
     drop_cols = [c for c in df.columns
-                 if c.startswith("Unnamed:")
-                 or c in {"Prompt TM", "Filter Range",
-                          "CL Settles / Fwd Proj (M1-M2)",
-                          "CL Settles / Fwd Proj (M2-M8)"}]
+                    if c.startswith("Unnamed:")
+                    or c in {"Prompt TM", "Filter Range",
+                            "CL Settles / Fwd Proj (M1-M2)",
+                            "CL Settles / Fwd Proj (M2-M8)"}]
     df.drop(columns=drop_cols, inplace=True, errors="ignore")
 
     # 2 ▸ build every intra‑curve spread among %CL n!
