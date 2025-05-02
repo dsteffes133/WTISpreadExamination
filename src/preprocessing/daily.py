@@ -152,6 +152,9 @@ def load_daily_xlsx(
     df = df.reindex(full_idx)
     df[price_like] = df[price_like].ffill()
 
+    today = pd.Timestamp.today().normalize()
+    df = df.loc[:today]
+
     # 9 ▸ tidy return
     df.reset_index(inplace=True)
     df.rename(columns={"index": "Date (Day)"}, inplace=True)
