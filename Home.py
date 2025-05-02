@@ -60,4 +60,4 @@ else:
     )
 
 with st.expander("🔧 Debug last row"):
-    st.write(daily_df.tail(3).T.tail(15))  # show last 3 dates, 15 cols
+    st.write(daily_df.tail(3))  # show last 3 dates, 15 cols
