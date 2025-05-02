@@ -145,7 +145,12 @@ def load_daily_xlsx(
                   if _CL_NUM.fullmatch(c)
                   or _Z_CON.fullmatch(c)
                   or " - " in c]
-    df[price_like] = df[price_like].ffill()
+    # 7 ▸ forward‑fill price‑like columns
+    df[price_like] = (
+        df[price_like]
+        .replace(0, np.nan)     # ← NEW: zero → NaN so ffill sees the gap
+        .ffill()
+        .bfill())
 
     # 8 ▸ calendar reindex (fill weekends/holidays)
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq="D")
