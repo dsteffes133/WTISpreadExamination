@@ -63,6 +63,12 @@ def load_daily_xlsx(
                             "CL Settles / Fwd Proj (M2-M8)"}]
     df.drop(columns=drop_cols, inplace=True, errors="ignore")
 
+    price_cols_raw = [c for c in df.columns if _CL_NUM.fullmatch(c) or _Z_CON.fullmatch(c)]
+    df[price_cols_raw] = df[price_cols_raw].apply(
+    pd.to_numeric, errors="coerce"
+)
+
+
     # 2 ▸ build every intra‑curve spread among %CL n!
     cl_cols = [c for c in df.columns if _CL_NUM.fullmatch(c)]
     cl_cols.sort(key=lambda c: int(_CL_NUM.fullmatch(c).group(1)))
