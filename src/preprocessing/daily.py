@@ -68,27 +68,7 @@ def load_daily_xlsx(
     for near, far in combinations(cl_cols, 2):
         df[f"{near} - {far}"] = df[near] - df[far]
 
-    # 3 ▸ Prompt Spread
-    if "Prompt Spread" not in df.columns and {"%CL 1!", "%CL 2!"}.issubset(df.columns):
-        df["Prompt Spread"] = df["%CL 1!"] - df["%CL 2!"]
-
-    # 4 ▸ December colour spreads
-    df["__YearTmp"] = pd.to_datetime(df["Date (Day)"]).dt.year
-    for name, o1, o2 in [("Dec Red", 0, 1),
-                         ("Red/Blue", 1, 2),
-                         ("Blue/Green", 2, 3)]:
-        lhs = [_dec_contract(y + o1) for y in df["__YearTmp"]]
-        rhs = [_dec_contract(y + o2) for y in df["__YearTmp"]]
-
-        lut = {c: i for i, c in enumerate(df.columns)}
-        lhs_idx = np.array([lut.get(c, -1) for c in lhs])
-        rhs_idx = np.array([lut.get(c, -1) for c in rhs])
-
-        mat = df.to_numpy()
-        row = np.arange(len(df))
-        df[name] = np.where(lhs_idx >= 0, mat[row, lhs_idx], np.nan) - \
-                   np.where(rhs_idx >= 0, mat[row, rhs_idx], np.nan)
-    df.drop(columns="__YearTmp", inplace=True, errors="ignore")
+    
 
     # 5 ▸ index by date & trim future rows
     df["Date (Day)"] = pd.to_datetime(df["Date (Day)"])
@@ -132,6 +112,28 @@ def load_daily_xlsx(
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq="D")
     df = df.reindex(full_idx)
     df[price_like] = df[price_like].ffill().bfill()
+
+    # 3 ▸ Prompt Spread
+    if "Prompt Spread" not in df.columns and {"%CL 1!", "%CL 2!"}.issubset(df.columns):
+        df["Prompt Spread"] = df["%CL 1!"] - df["%CL 2!"]
+
+    # 4 ▸ December colour spreads
+    df["__YearTmp"] = pd.to_datetime(df["Date (Day)"]).dt.year
+    for name, o1, o2 in [("Dec Red", 0, 1),
+                         ("Red/Blue", 1, 2),
+                         ("Blue/Green", 2, 3)]:
+        lhs = [_dec_contract(y + o1) for y in df["__YearTmp"]]
+        rhs = [_dec_contract(y + o2) for y in df["__YearTmp"]]
+
+        lut = {c: i for i, c in enumerate(df.columns)}
+        lhs_idx = np.array([lut.get(c, -1) for c in lhs])
+        rhs_idx = np.array([lut.get(c, -1) for c in rhs])
+
+        mat = df.to_numpy()
+        row = np.arange(len(df))
+        df[name] = np.where(lhs_idx >= 0, mat[row, lhs_idx], np.nan) - \
+                   np.where(rhs_idx >= 0, mat[row, rhs_idx], np.nan)
+    df.drop(columns="__YearTmp", inplace=True, errors="ignore")
 
     # 9 ▸ tidy return
     df.reset_index(inplace=True)
