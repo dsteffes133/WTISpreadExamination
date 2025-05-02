@@ -23,10 +23,30 @@ def check_dec_red(df):
         return dict(ts=z[-750:], msg=f"z={z.iloc[-1]:+.2f}")
     return None
 
-def check_vol_spike(df):
-    vol = rolling_vol(df, ["%CL 1!"], 20, annualize=False)["%CL 1!"]
-    if vol.iloc[-1] > 3*vol.iloc[-2]:
-        return dict(ts=vol[-200:], msg=f"σ={vol.iloc[-1]:.3f}")
+def check_vol_spike(df) -> dict | None:
+    """
+    Detect 1‑day vol jump: today’s σ > 3 × yesterday’s.
+    Returns None if:
+      • %CL 1! column missing
+      • fewer than TWO non‑NaN σ observations
+    """
+    if "%CL 1!" not in df.columns:
+        return None
+
+    vol = rolling_vol(
+        df, ["%CL 1!"],
+        window=20,          # 20‑day look‑back
+        annualize=False,
+        min_periods=2       # start as soon as we have 2 returns
+    )["%CL 1!"].dropna()
+
+    # need at least TWO valid rows
+    if len(vol) < 2:
+        return None
+
+    today, prev = vol.iloc[-1], vol.iloc[-2]
+    if pd.notna(today) and pd.notna(prev) and today > 3 * prev:
+        return dict(ts=vol.tail(200), msg=f"σ jump: {today:.3f}")
     return None
 
 def check_spread_hi_lo(df, near, far, lookback=504):
