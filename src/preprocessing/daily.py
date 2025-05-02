@@ -92,9 +92,13 @@ def load_daily_xlsx(
         df[name] = lhs_vals - rhs_vals
     df.drop(columns="__YearTmp", inplace=True, errors="ignore")
 
-    # 5 ▸ index by date for time‑series ops
+    # 5 ▸ index by date
     df["Date (Day)"] = pd.to_datetime(df["Date (Day)"])
     df = df.set_index("Date (Day)").sort_index()
+
+    # ── NEW  ▸ drop rows beyond 'today'  ───────────────────────────────
+    today = pd.Timestamp.today().normalize()
+    df = df.loc[:today]   
 
     # 6 ▸ read EIA WEEKLY DATA
     weekly = pd.read_excel(
