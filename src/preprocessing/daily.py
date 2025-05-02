@@ -1,118 +1,99 @@
+# ── src/preprocessing/daily.py  (full rewritten snippet) ───────────────
 from pathlib import Path
-from typing import Union, IO
-
-import pandas as pd
-import numpy as np
-import re
+import pandas as pd, re
 from itertools import combinations
 import pandas_market_calendars as mcal
 
+# ----------------------------------------------------------------------
+def load_daily_xlsx(xlsx: str | Path,
+                    daily_sheet: str = "Daily Data",
+                    weekly_eia_sheet: str = "EIA WEEKLY DATA",
+                    max_leg: int = 24) -> pd.DataFrame:
 
-# ──────────────────────────────────────────────────────────────────────
-MONTH_RE = re.compile(r"%CL\s+(\d+)!")        # captures month leg as int
+    # ---------- 1. read Daily Data (outrights & legacy spreads) -------
+    df = pd.read_excel(
+        xlsx, daily_sheet,
+        skiprows=5, header=0, usecols="B:AI"
+    )
 
+    # add December contracts Z18 … Z28  (already present in file)
+    # nothing to do – they’re included in B:AI read-range
 
-def _is_leg(col: str) -> bool:
-    return bool(MONTH_RE.fullmatch(col))
-
-
-def _leg_num(col: str) -> int:
-    return int(MONTH_RE.fullmatch(col).group(1))
-
-
-# ──────────────────────────────────────────────────────────────────────
-def load_daily_xlsx(
-    xlsx: Union[str, Path, IO[bytes]],
-    sheet: str = "Daily Data"
-) -> pd.DataFrame:
-    """
-    Read *Daily Data* sheet, build spreads, clean, fill forward.
-
-    Returns
-    -------
-    pd.DataFrame
-        Cleaned daily data with **'Date (Day)'** as a column (not index),
-        no NaNs, outrights/spreads only up to CL12, plus engineered
-        Cushing release/interpolation columns.
-    """
-    # ------------------------------------------------------------------
-    df = pd.read_excel(xlsx, sheet, skiprows=5, header=0, usecols="B:AI")
-
-    # 1) Build calendar-spread columns
-    cl_cols = sorted([c for c in df.columns if _is_leg(c)], key=_leg_num)
-
+    # --- build all intra-%CL spreads (same as before) -----------------
+    cl_cols = [c for c in df.columns if re.match(r"%CL \d+!", c)]
+    cl_cols = sorted(cl_cols, key=lambda c: int(re.search(r"\d+", c).group()))
     for near, far in combinations(cl_cols, 2):
         df[f"{near} - {far}"] = df[near] - df[far]
 
-    # 2) Drop hard-coded throw-away columns
-    df = df.drop(
-        columns={
-            "%CL 1! - %CL 2!",
-            "CL Settles / Fwd Proj (M1-M2)",
-            "CL Settles / Fwd Proj (M2-M8)",
-            "Filter Range",
-            "Prompt TM",
-        },
-        errors="ignore",
+    # --- drop unwanted legacy cols ------------------------------------
+    df.drop(columns={
+        "%CL 1! - %CL 2!", "CL Settles / Fwd Proj (M1-M2)",
+        "CL Settles / Fwd Proj (M2-M8)", "Filter Range", "Prompt TM"
+    }, inplace=True, errors="ignore")
+
+    # ---------- 2. colour spreads  (Dec Red / Red-Blue / Blue-Green) --
+    def dec_contract(year: int) -> str:
+        return f"CL Z{str(year)[-2:]}"
+
+    z_cols = [c for c in df.columns if re.match(r"CL Z\d{2}$", c)]
+    df["Year"] = pd.to_datetime(df["Date (Day)"]).dt.year
+    for name, offset1, offset2 in [
+        ("Dec Red",    0, 1),
+        ("Red/Blue",   1, 2),
+        ("Blue/Green", 2, 3)
+    ]:
+        lhs = [dec_contract(y + offset1) for y in df["Year"]]
+        rhs = [dec_contract(y + offset2) for y in df["Year"]]
+        df[name] = df.lookup(df.index, lhs) - df.lookup(df.index, rhs)
+
+    # ---------- 3. Cushing Release & Interp  (existing logic) ---------
+    df['Date (Day)'] = pd.to_datetime(df['Date (Day)'])
+    df = df.set_index('Date (Day)').sort_index()
+    cush = df['Cushing Stocks (Mbbl)'].dropna()
+
+    def next_wed(d):                   # helper
+        off = (2 - d.weekday() + 7) % 7
+        return d + pd.Timedelta(days=off or 7)
+
+    rel_idx = cush.index.map(next_wed)
+    cush_release = cush.copy(); cush_release.index = rel_idx
+    df['Cushing Stocks (Release)'] = cush_release.reindex(df.index).ffill()
+    df['Cushing Stocks (Interp)']  = (
+        cush.reindex(df.index).interpolate('time').ffill().bfill()
     )
 
-    # 3) Prompt & Dec-Red extras
-    df["Prompt Spread"] = df["%CL 1!"] - df["%CL 2!"]
-    df["Dec Red"] = df["CL Z25"] - df["CL Z26"]
-
-    # 4) Drop legs/spreads beyond 12 months
-    meta_cols = {
-        "Date (Day)",
-        "Cushing Stocks (Mbbl)",
-        "Prompt Spread",
-        "Dec Red",
-    }
-    drop_cols = [
-    c
-    for c in df.columns
-    if c not in meta_cols
-    and any(int(x) > 12 for x in MONTH_RE.findall(c))    # ← fixed
-]
-    df = df.drop(columns=drop_cols)
-
-    # 5) Date handling & sort
-    df["Date (Day)"] = pd.to_datetime(df["Date (Day)"])
-    df = df.set_index("Date (Day)").sort_index()
-
-    # 6) Cushing inventory engineering
-    cush = df["Cushing Stocks (Mbbl)"].dropna()
-
-    def _next_wed(d):  # first Wed *after* d
-        off = (2 - d.weekday() + 7) % 7 or 7
-        return d + pd.Timedelta(days=off)
-
-    cush_release = cush.copy()
-    cush_release.index = cush.index.map(_next_wed)
-    df["Cushing Stocks (Release)"] = cush_release.reindex(df.index).ffill()
-
-    cush_interp = (
-        cush.reindex(df.index)
-        .interpolate(method="time")
-        .ffill()
-        .bfill()
+    # ---------- 4. NEW -- EIA WEEKLY sheet → daily Release/Interp -----
+    eia = pd.read_excel(
+        xlsx, weekly_eia_sheet,
+        skiprows=2, usecols="A:P"
     )
-    df["Cushing Stocks (Interp)"] = cush_interp
-    df["Delta Cushing Release"] = df["Cushing Stocks (Release)"].diff()
-    df["Delta Cushing Interp"] = df["Cushing Stocks (Interp)"].diff()
+    eia.rename(columns={eia.columns[0]: "Date"}, inplace=True)
+    eia["Date"] = pd.to_datetime(eia["Date"])
+    eia = eia.set_index("Date").sort_index()
 
-    # 7) Zero-value row filter & full calendar re-index
-    df = df[df["%CL 1!"] != 0]
-    full_idx = pd.date_range(df.index.min(), df.index.max(), freq="D")
+    for col in eia.columns:
+        series = eia[col].dropna()
+
+        # (a) Release series
+        rel_idx = series.index.map(next_wed)
+        s_rel = series.copy(); s_rel.index = rel_idx
+        df[f"{col} (Release)"] = s_rel.reindex(df.index).ffill()
+
+        # (b) Interpolated physical series
+        s_interp = (
+            series.reindex(df.index)
+                  .interpolate("time")
+                  .ffill().bfill()
+        )
+        df[f"{col} (Interp)"] = s_interp
+
+    # ---------- 5. re-index to full calendar & forward-fill prices ----
+    full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
     df = df.reindex(full_idx)
 
-    price_cols = df.columns.difference(
-        ["Prompt TM", "Cushing Stocks (Mbbl)"]
-    )
+    price_cols = [c for c in df.columns if c.startswith("%CL ") or " - " in c or c.startswith("CL Z")]
     df[price_cols] = df[price_cols].ffill()
-    df["Cushing Stocks (Mbbl)"] = df["Cushing Stocks (Mbbl)"].ffill()
 
-    today = pd.Timestamp("today").normalize()      # e.g. 2025-04-29 00:00:00
-    df = df.loc[df.index <= today]
-
-    # 8) Return with date restored as column
-    return df.reset_index(names="Date (Day)")
+    df.reset_index(inplace=True)
+    df.rename(columns={"index": "Date (Day)"}, inplace=True)
+    return df
