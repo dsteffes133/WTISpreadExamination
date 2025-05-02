@@ -58,3 +58,6 @@ else:
         "⬅️ Upload the latest workbook to unlock the dashboard."
         "\n\n(Any page clicked before upload will redirect you back.)"
     )
+
+with st.expander("🔧 Debug last row"):
+    st.write(daily_df.tail(3).T.tail(15))  # show last 3 dates, 15 cols
