@@ -63,9 +63,16 @@ def load_daily_xlsx(
         lhs_cols = [_dec_contract(y + o1) for y in df["YearTmp"]]
         rhs_cols = [_dec_contract(y + o2) for y in df["YearTmp"]]
 
-        # vectorised gather (pandas ≥2.0 replacement for .lookup)
-        lhs_vals = df.reindex(columns=lhs_cols).to_numpy(diagonal=0)
-        rhs_vals = df.reindex(columns=rhs_cols).to_numpy(diagonal=0)
+        # map the column names to positional indices (-1 if missing)
+        col_lut = {c: i for i, c in enumerate(df.columns)}
+        lhs_idx = np.array([col_lut.get(c, -1) for c in lhs_cols])
+        rhs_idx = np.array([col_lut.get(c, -1) for c in rhs_cols])
+
+        mat = df.to_numpy()                         # full data matrix
+        row = np.arange(len(df))
+
+        lhs_vals = np.where(lhs_idx >= 0, mat[row, lhs_idx], np.nan)
+        rhs_vals = np.where(rhs_idx >= 0, mat[row, rhs_idx], np.nan)
 
         df[name] = lhs_vals - rhs_vals
 
