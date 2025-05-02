@@ -1,50 +1,64 @@
+# pages/4_Volatility_Risk.py
 import streamlit as st, pandas as pd
 from src.analytics.rolling_vol import rolling_vol
-from src.viz.vol_panel import vol_panel
-from src.analytics.term_structure import list_legs   # to auto-gather columns
+from src.viz.vol_panel       import vol_panel
+from src.analytics.term_structure import list_legs
 
-# ── guard ───────────────────────────────────────────
-st.header("📉 Volatility & Risk")
+# ──────────────────────────  page header  ───────────────────────────
+st.header("📉 Volatility & Risk")
 
+# ── workbook guard ──────────────────────────────────────────────────
 if "daily_df" not in st.session_state:
-    st.warning("⬅️ Upload workbook first."); st.stop()
+    st.warning("⬅️ Upload the Excel workbook on the Home page first.")
+    st.stop()
 
 df: pd.DataFrame = st.session_state["daily_df"]
 
-# add at top of Volatility Risk page, after you load daily_df
-target_cols = ["%CL 1!", "%CL 2!", "Prompt Spread"]  # or whichever you're plotting
+# ── build selectable universe (outrights + spreads) ─────────────────
+leg_cols    = list_legs(df)                               # %CL 1! … %CL 12!
+spread_cols = [c for c in df.columns
+               if " - " in c or c in ["Prompt Spread", "Dec Red",
+                                       "Red/Blue", "Blue/Green"]]
 
-# show last 25 rows to confirm numeric and NaN pattern
-st.write("### Debug: tail of input price columns")
-st.write(df[target_cols].tail(25))
+universe = leg_cols + spread_cols
 
-# ── build selectable column universe (legs + all spreads) ──────────────
-leg_cols     = list_legs(df)
-spread_cols  = [c for c in df.columns if " - " in c or c in ["Prompt Spread", "Dec Red"]]
-universe     = leg_cols + spread_cols
-
-# ── UI controls ────────────────────────────────────────────────────────
+# ── UI controls ─────────────────────────────────────────────────────
 default_sel = ["%CL 1!", "Prompt Spread", "Dec Red"]
 sel_cols = st.multiselect(
-    "Choose instruments / spreads", universe, default=default_sel, max_selections=8
+    "Choose instruments / spreads (max 8)",
+    universe,
+    default=default_sel,
+    max_selections=8,
 )
 
 window = st.slider("Rolling window (days)", 5, 120, 20, step=5)
 
 if not sel_cols:
-    st.info("Select at least one series."); st.stop()
+    st.info("Select at least one series to display.")
+    st.stop()
 
-# ── compute & plot ─────────────────────────────────────────────────────
-vol_df = rolling_vol(df, sel_cols, window=window)
-st.plotly_chart(vol_panel(vol_df, sel_cols), use_container_width=True)
-
-st.caption(
-    f"Volatility computed on % daily returns, rolled {window} days "
-    "(annualised). Works on outrights *and* any spread."
+# ── compute rolling σ  ──────────────────────────────────────────────
+vol_df = rolling_vol(
+    df, sel_cols,
+    window=window,
+    annualize=True,     # display annualised vols
+    min_periods=2       # start after 2 valid returns
 )
 
-vol_debug = rolling_vol(df, ["%CL 1!"], window=20,
-                        annualize=False, min_periods=2, gap_ffill=3)
+# ── plot  ────────────────────────────────────────────────────────────
+st.plotly_chart(
+    vol_panel(vol_df, sel_cols),
+    use_container_width=True
+)
 
-st.write("### Debug: rolling_vol tail")
-st.write(vol_debug.tail(25))
+st.caption(
+    f"Volatility = σ(% daily return) rolled **{window} days**, "
+    "annualised by √252. Works on outrights *and* any spread."
+)
+
+# ── optional debug block (collapse by default) ──────────────────────
+with st.expander("🔧 Debug input / σ tail"):
+    st.write("**Tail of price inputs**")
+    st.write(df[sel_cols].tail(10).T)
+    st.write("**Tail of rolling σ**")
+    st.write(vol_df[sel_cols].tail(10).T)
