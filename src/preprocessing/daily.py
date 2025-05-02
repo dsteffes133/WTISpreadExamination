@@ -150,10 +150,7 @@ def load_daily_xlsx(
     # 8 ▸ calendar reindex (fill weekends/holidays)
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq="D")
     df = df.reindex(full_idx)
-    df[price_like] = df[price_like].ffill()
-
-    today = pd.Timestamp.today().normalize()
-    df = df.loc[:today]
+    df[price_like] = df[price_like].ffill().bfill()
 
     # 9 ▸ tidy return
     df.reset_index(inplace=True)
