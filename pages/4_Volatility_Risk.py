@@ -11,6 +11,13 @@ if "daily_df" not in st.session_state:
 
 df: pd.DataFrame = st.session_state["daily_df"]
 
+# add at top of Volatility Risk page, after you load daily_df
+target_cols = ["%CL 1!", "%CL 2!", "Prompt Spread"]  # or whichever you're plotting
+
+# show last 25 rows to confirm numeric and NaN pattern
+st.write("### Debug: tail of input price columns")
+st.write(df[target_cols].tail(25))
+
 # ── build selectable column universe (legs + all spreads) ──────────────
 leg_cols     = list_legs(df)
 spread_cols  = [c for c in df.columns if " - " in c or c in ["Prompt Spread", "Dec Red"]]
@@ -35,3 +42,9 @@ st.caption(
     f"Volatility computed on % daily returns, rolled {window} days "
     "(annualised). Works on outrights *and* any spread."
 )
+
+vol_debug = rolling_vol(df, ["%CL 1!"], window=20,
+                        annualize=False, min_periods=2, gap_ffill=3)
+
+st.write("### Debug: rolling_vol tail")
+st.write(vol_debug.tail(25))
