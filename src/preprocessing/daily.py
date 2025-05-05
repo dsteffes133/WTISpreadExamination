@@ -43,6 +43,13 @@ def load_daily_xlsx(
     df = pd.read_excel(xlsx, daily_sheet, skiprows=5, header=0)
     df.columns = df.columns.str.strip()
 
+    # ── ensure the date column is called "Date (Day)" ───────────────────
+    if "Date (Day)" not in df.columns:
+        for c in df.columns:
+            if c.lower().startswith("date"):
+                df.rename(columns={c: "Date (Day)"}, inplace=True)
+                break
+
     # ── drop %CL legs beyond 12
     far_legs = [c for c in df.columns
                 if _CL_NUM.fullmatch(c) and int(_CL_NUM.fullmatch(c).group(1)) > 12]
