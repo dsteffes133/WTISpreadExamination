@@ -31,7 +31,7 @@ universe = leg_cols + spread_cols + inv_cols
 sel = st.multiselect(
     "Pick any series (up to 10)",
     universe,
-    default=["%CL 1!", "Prompt Spread", "Cushing Stocks (Mbbl) (Interp)"],
+    default=["%CL 1!", "Prompt Spread", "Cushing Stocks (Mbbl)"],
     max_selections=10,
 )
 
@@ -120,7 +120,7 @@ fig.update_layout(
     margin=dict(l=60, r=40, t=30, b=40),
 )
 
-fig.update_traces(fill=None, stackgroup=None)
+fig.update_traces(fill="none")          # or the selector version above
 st.plotly_chart(fig, use_container_width=True)
 
 
