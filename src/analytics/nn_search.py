@@ -1,25 +1,31 @@
-"""
-nn_search.py – thin wrapper around sklearn NearestNeighbors.
-"""
-
+# src/analytics/nn_search.py
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 
-def knn_search(X: pd.DataFrame, query_date: pd.Timestamp, k: int = 5):
+def knn_search(
+    X: pd.DataFrame,
+    query_date: pd.Timestamp,
+    k: int = 5,
+    min_gap: int = 30          # days
+) -> pd.DataFrame:
     """
-    Returns DataFrame of neighbours sorted by distance.
+    Return the k nearest neighbours that are at least `min_gap`
+    calendar days away from `query_date`.
     """
-    if query_date not in X.index:
+    qts = pd.Timestamp(query_date)
+    if qts not in X.index:
         raise ValueError("query_date not in feature matrix")
 
-    model = NearestNeighbors(n_neighbors=k+1, metric="euclidean")
-    model.fit(X.values)
+    # --- drop rows inside the blackout window ------------------------
+    mask = (abs((X.index - qts).days) >= min_gap)
+    X_train = X.loc[mask]
 
-    idx = X.index.get_loc(query_date)
-    dists, neigh_idx = model.kneighbors(X.iloc[[idx]].values, n_neighbors=k+1)
+    # fit on the filtered matrix
+    nbrs = NearestNeighbors(n_neighbors=k, metric="euclidean")
+    nbrs.fit(X_train.values)
 
-    # first neighbour is the query itself – drop it
-    neigh_idx, dists = neigh_idx[0][1:], dists[0][1:]
-    neigh_dates = X.index[neigh_idx]
+    dists, idxs = nbrs.kneighbors(X.loc[[qts]].values, n_neighbors=k)
+    neigh_dates = X_train.index[idxs[0]]
 
-    return pd.DataFrame({"Date": neigh_dates, "Distance": dists}).set_index("Date")
+    return pd.DataFrame({"Date": neigh_dates,
+                         "Distance": dists[0]}).set_index("Date")
