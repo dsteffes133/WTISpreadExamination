@@ -9,7 +9,9 @@ st.header("🔍  Historical Analogue Finder")
 if "daily_df" not in st.session_state:
     st.warning("⬅️ Upload workbook first."); st.stop()
 
-df: pd.DataFrame = st.session_state["daily_df"]
+df: pd.DataFrame = st.session_state["daily_df"].copy()
+df["Date (Day)"] = pd.to_datetime(df["Date (Day)"])
+df = df.set_index("Date (Day)").sort_index() 
 
 # build + cache feature matrix
 @st.cache_data
