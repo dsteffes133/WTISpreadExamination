@@ -125,7 +125,8 @@ def load_daily_xlsx(
         df["Prompt Spread"] = df["%CL 1!"] - df["%CL 2!"]
 
     # 4 ▸ December colour spreads
-    df.reset_index(inplace=True, drop=False)
+    df.reset_index(inplace=True)
+    df.rename(columns={"index": "Date (Day)"}, inplace=True)
     df["__YearTmp"] = pd.to_datetime(df["Date (Day)"]).dt.year
     for name, o1, o2 in [("Dec Red", 0, 1),
                          ("Red/Blue", 1, 2),
@@ -143,7 +144,4 @@ def load_daily_xlsx(
                    np.where(rhs_idx >= 0, mat[row, rhs_idx], np.nan)
     df.drop(columns="__YearTmp", inplace=True, errors="ignore")
 
-    # 9 ▸ tidy return
-    df.reset_index(inplace=True)
-    df.rename(columns={"index": "Date (Day)"}, inplace=True)
     return df
