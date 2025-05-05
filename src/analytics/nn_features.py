@@ -36,7 +36,7 @@ def curve_level_z(df: pd.DataFrame) -> pd.DataFrame:
     return z
 
 def cushing_momentum(df: pd.DataFrame) -> pd.Series:
-    return df["Cushing Stocks (Interp)"].diff(7).rename("ΔCush_1w")
+    return df["Cushing Stocks (Mmbl) (Interp)"].diff(7).rename("ΔCush_1w")
 
 # register
 FEATURE_FUNCS: Dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
