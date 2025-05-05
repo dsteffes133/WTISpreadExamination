@@ -1,24 +1,19 @@
 """
-nn_features.py  – build a clean, numeric feature matrix
+nn_features.py  – build a clean, numeric feature matrix
 -------------------------------------------------------
-Called once per upload → cached.
+*Called once per upload — cached by Streamlit*
 
-Output
-------
-X : pandas.DataFrame  (index = calendar date)
-      • numeric z‑scored columns ready for distance search
-meta : pandas.DataFrame  (index = same, cols = headline vars you want to
-      show in neighbour table – e.g. Prompt Spread, Dec Red, Cushing)
-
-You can add / drop engineered features in `FEATURE_FUNCS`.
+Returns
+-------
+X     : DataFrame (index = calendar days) of z‑scored features
+meta  : DataFrame of headline columns for neighbour table
 """
 
+from __future__ import annotations
 import pandas as pd, numpy as np
-from typing import Dict, Callable
+from typing import Dict, Callable, List
 
-# ------------------------------------------------------------
-# Feature builders – each returns a pd.Series (must align on index)
-# ------------------------------------------------------------
+# ── feature builders ──────────────────────────────────────────────────
 def fwd_curve_slopes(df: pd.DataFrame) -> pd.DataFrame:
     """M1‑M3, M3‑M6, M6‑M12 $/bbl slopes."""
     return pd.DataFrame({
@@ -28,46 +23,72 @@ def fwd_curve_slopes(df: pd.DataFrame) -> pd.DataFrame:
     })
 
 def curve_level_z(df: pd.DataFrame) -> pd.DataFrame:
-    """z‑score of each outright vs 3‑yr window."""
+    """z‑score of each outright vs 3‑yr window (756 ≈ 3*252)."""
     outs = [c for c in df.columns if c.startswith("%CL ")]
-    z = (df[outs] - df[outs].rolling(756, min_periods=60).mean()) / \
-        df[outs].rolling(756, min_periods=60).std()
+    roll_mean = df[outs].rolling(756, min_periods=60).mean()
+    roll_std  = df[outs].rolling(756, min_periods=60).std()
+    z = (df[outs] - roll_mean) / roll_std
     z.columns = [c + "_z" for c in outs]
     return z
 
 def cushing_momentum(df: pd.DataFrame) -> pd.Series:
-    return df["Cushing Stocks (Mbbl) (Interp)"].diff(7).rename("ΔCush_1w")
+    """
+    1‑week ΔCushing using the Interp series if present,
+    else the Release or raw column.
+    """
+    for cand in ["Cushing Stocks (Mbbl) (Interp)",
+                 "Cushing Stocks (Interp)",
+                 "Cushing Stocks (Mbbl) (Release)",
+                 "Cushing Stocks (Mbbl)"]:
+        if cand in df.columns:
+            return df[cand].diff(7).rename("ΔCush_1w")
+    # fallback empty series (gets dropped later)
+    return pd.Series(dtype=float, name="ΔCush_1w")
 
-# register
-FEATURE_FUNCS: Dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
-    "slopes": fwd_curve_slopes,
-    "level_z": curve_level_z,
-    "cush_mom": cushing_momentum,
+FEATURE_FUNCS: Dict[str, Callable[[pd.DataFrame], pd.DataFrame | pd.Series]] = {
+    "slopes":    fwd_curve_slopes,
+    "level_z":   curve_level_z,
+    "cush_mom":  cushing_momentum,
 }
 
-HEADLINE_COLS = ["Prompt Spread", "Dec Red", "Cushing Stocks (Interp)"]
+# headline columns shown in the neighbour table (keep if present)
+HEADLINE_CANDIDATES: List[str] = [
+    "Prompt Spread",
+    "Dec Red",
+    "Cushing Stocks (Mbbl) (Interp)",
+    "Cushing Stocks (Interp)",
+    "Cushing Stocks (Mbbl) (Release)",
+]
 
-# ------------------------------------------------------------
-def build_feature_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+# ── main builder ──────────────────────────────────────────────────────
+def build_feature_matrix(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
+    Parameters
+    ----------
+    df : fully engineered `daily_df`
+
     Returns
     -------
-    X   : feature matrix (z‑scored per column, NaNs dropped)
-    meta: selected headline columns (not scaled) for neighbour table
+    X    : z‑scored feature DataFrame (no NaNs)
+    meta : headline columns for neighbour report (not scaled)
     """
-    feats = []
-    for f in FEATURE_FUNCS.values():
-        part = f(df)
-        feats.append(part)
+    feat_parts = []
+    for func in FEATURE_FUNCS.values():
+        part = func(df)
+        feat_parts.append(part)
 
-    X = pd.concat(feats, axis=1)
+    X = pd.concat(feat_parts, axis=1)
 
-    # z‑score each feature (some already, but cheap to redo)
-    X = (X - X.mean()) / X.std()
+    # z‑score each column (guard against division by 0)
+    X = (X - X.mean()) / X.std().replace(0, np.nan)
 
-    # drop rows with any NaN (rare after your ffill/bfill)
+    # drop rows with any NaN (rare after ffill/bfill)
     X = X.dropna()
 
-    meta = df.loc[X.index, HEADLINE_COLS]
+    # build meta with only the columns that exist
+    present = [c for c in HEADLINE_CANDIDATES if c in df.columns]
+    meta = df.loc[X.index, present]
 
     return X, meta
