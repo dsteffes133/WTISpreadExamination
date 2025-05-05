@@ -60,34 +60,35 @@ HEADLINE_CANDIDATES: List[str] = [
     "Cushing Stocks (Mbbl) (Release)",
 ]
 
-# ── main builder ──────────────────────────────────────────────────────
+# --- limited feature builder ------------------------------------------
+LIMITED_COLS = (
+    [f"%CL {i}!" for i in range(1, 13)] +      # outrights 1‑12
+    ["Prompt Spread", "Dec Red", "%CL 2! - %CL 8!",   # CL2‑CL8 spread
+     "Cushing Stocks (Mbbl) (Interp)"]
+)
+
+def limited_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Return only the columns listed above (z‑scored)."""
+    cols = [c for c in LIMITED_COLS if c in df.columns]
+    X = df[cols].copy()
+    X = (X - X.mean()) / X.std()
+    return X
+
+# ----------------------------------------------------------------------
 def build_feature_matrix(
     df: pd.DataFrame,
+    mode: str = "full"          # "full" | "limited"
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Parameters
-    ----------
-    df : fully engineered `daily_df`
 
-    Returns
-    -------
-    X    : z‑scored feature DataFrame (no NaNs)
-    meta : headline columns for neighbour report (not scaled)
-    """
-    feat_parts = []
-    for func in FEATURE_FUNCS.values():
-        part = func(df)
-        feat_parts.append(part)
+    if mode == "limited":
+        X = limited_features(df)
+    else:                       # default "full"
+        parts = [f(df) for f in FEATURE_FUNCS.values()]
+        X = pd.concat(parts, axis=1)
+        X = (X - X.mean()) / X.std()
 
-    X = pd.concat(feat_parts, axis=1)
-
-    # z‑score each column (guard against division by 0)
-    X = (X - X.mean()) / X.std().replace(0, np.nan)
-
-    # drop rows with any NaN (rare after ffill/bfill)
     X = X.dropna()
 
-    # build meta with only the columns that exist
     present = [c for c in HEADLINE_CANDIDATES if c in df.columns]
     meta = df.loc[X.index, present]
 
