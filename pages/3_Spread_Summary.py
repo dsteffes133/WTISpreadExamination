@@ -115,6 +115,7 @@ with bot[0]:
     )
     fig_spread.add_hline(stats["Mean"], line_dash="dash", line_color="gray")
     fig_spread.update_layout(hovermode="x unified")
+    
     st.plotly_chart(fig_spread, use_container_width=True)
 
 # -- 2-D  histogram  ----------------------------------------------------

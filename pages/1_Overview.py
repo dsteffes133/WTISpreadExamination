@@ -31,7 +31,7 @@ universe = leg_cols + spread_cols + inv_cols
 sel = st.multiselect(
     "Pick any series (up to 10)",
     universe,
-    default=["%CL 1!", "Prompt Spread", "Cushing Stocks (Mbbl)"],
+    default=["%CL 1!", "Prompt Spread", "Cushing Stocks (Mbbl) (Interp)"],
     max_selections=10,
 )
 
