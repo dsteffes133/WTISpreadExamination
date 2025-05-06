@@ -82,6 +82,56 @@ mean_ret = out.mean().sort_values(key=abs, ascending=False)
 st.subheader(f"Average Δ over {fwd} days (across neighbours)")
 st.plotly_chart(outcome_bar(mean_ret), use_container_width=True)
 
+if targets:
+    tgt = targets[0]                     # plot just the first target
+    ts = df[tgt].dropna()
+
+    import plotly.graph_objects as go
+    fig_hist = go.Figure()
+
+    # full history line
+    fig_hist.add_trace(go.Scatter(
+        x=ts.index, y=ts.values,
+        mode="lines",
+        name=tgt,
+        line=dict(color="royalblue")
+    ))
+
+    # add semi‑transparent vrect for ±7 day window of each neighbour
+    for dt in nbrs.index:
+        start = dt - pd.Timedelta(days=7)
+        end   = dt + pd.Timedelta(days=7)
+        fig_hist.add_vrect(
+            x0=start, x1=end,
+            fillcolor="orange", opacity=0.25, layer="below", line_width=0
+        )
+        # marker on the exact neighbour date
+        fig_hist.add_trace(go.Scatter(
+            x=[dt], y=[ts.loc[dt]],
+            mode="markers", marker=dict(color="red", size=6),
+            showlegend=False
+        ))
+
+    fig_hist.update_layout(
+        title=f"{tgt} — full history  (orange = ±7 d around neighbours)",
+        height=400,
+        margin=dict(l=60, r=40, t=50, b=40),
+        hovermode="x unified"
+    )
+    fig_hist.update_traces(fill="none")
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    # ── neighbour Δ table (numeric, no chart) --------------------------
+    delta_tbl = out[[tgt]].rename(columns={tgt: f"Δ{fwd}d"})
+    st.subheader(f"{tgt} — forward Δ over {fwd} days")
+    st.dataframe(
+        delta_tbl.style.format("{:+.2f}"),
+        use_container_width=True,
+        hide_index=False,
+    )
+else:
+    st.info("Select at least one target spread to show history plot.")
+
 # ── caption -----------------------------------------------------
 st.caption(
     f"**Feature mode**: {mode_label.split('–')[0].strip()}  •  "
