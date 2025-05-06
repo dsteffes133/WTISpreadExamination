@@ -20,19 +20,18 @@ from pathlib import Path
 import pandas as pd, numpy as np, re
 from itertools import combinations
 
-# ── regex helpers --------------------------------------------------------------
-_CL_NUM = re.compile(r"%CL (\d+)!")       # %CL 1! … %CL 24!
-_Z_CON  = re.compile(r"CL Z\d{2}$")       # CL Z18 … Z28
+# ── helpers --------------------------------------------------------------------
+_CL_NUM = re.compile(r"%CL (\d+)!")
+_Z_CON  = re.compile(r"CL Z\d{2}$")
 
-def _dec_contract(year: int) -> str:      # 2025 → CL Z25
+def _dec_contract(year: int) -> str:        # 2025 → "CL Z25"
     return f"CL Z{str(year)[-2:]}"
 
 def _next_wed(ts: pd.Timestamp) -> pd.Timestamp:
-    """First Wednesday *after* `ts` (never same‑day)."""
     off = (2 - ts.weekday() + 7) % 7
     return ts + pd.Timedelta(days=off or 7)
 
-# ── loader ---------------------------------------------------------------------
+# ── main loader ----------------------------------------------------------------
 def load_daily_xlsx(
     xlsx: str | Path,
     daily_sheet: str = "Daily Data",
@@ -77,9 +76,17 @@ def load_daily_xlsx(
 
     
 
-    # 5 ▸ index by date & trim future rows
+     # 5 ▸ index by date & trim future rows
     df["Date (Day)"] = pd.to_datetime(df["Date (Day)"])
     df = df.set_index("Date (Day)").sort_index()
+
+    # ────────────────────────────────────────────────────────────────
+    # COVID blackout  →  OPTION 2
+    # Drop 2020‑03‑01 … 2020‑05‑31, then later re‑index + ffill/bfill
+    covid_mask = df.loc["2020-03-01":"2020-05-31"].index
+    df = df.drop(covid_mask)                       # *remove* the rows
+    # ────────────────────────────────────────────────────────────────
+
     df = df.loc[:pd.Timestamp.today().normalize()]   # drop future blanks
 
     # 6 ▸ read EIA WEEKLY DATA
