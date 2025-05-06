@@ -79,9 +79,6 @@ st.dataframe(
 out = forward_outcomes(df, nbrs.index, targets, fwd_days=fwd)
 mean_ret = out.mean().sort_values(key=abs, ascending=False)
 
-st.subheader(f"Average Δ over {fwd} days (across neighbours)")
-st.plotly_chart(outcome_bar(mean_ret), use_container_width=True)
-
 if targets:
     tgt = targets[0]                     # plot just the first target
     ts = df[tgt].dropna()
