@@ -50,8 +50,8 @@ fwd   = st.slider("Forward days",                 5, 30, 10, step=5)
 gap   = st.slider("Black‑out window ± days",      5, 90, 30, step=5)
 
 spread_choices = (
-    ["Prompt Spread", "Dec Red"] +
-    [c for c in df.columns if " - " in c][:5]        # first 5 spreads
+    ["Prompt Spread", "Dec Red", "Red/Blue", "Blue/Green"] +
+    [c for c in df.columns if " - " in c] 
 )
 targets = st.multiselect("Target spreads", spread_choices,
                          default=["Prompt Spread"])
